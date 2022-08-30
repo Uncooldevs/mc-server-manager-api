@@ -2,6 +2,7 @@ import asyncio
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
+from mc_server_interaction.exceptions import ServerRunningException
 from mc_server_interaction.server_manger import ServerManager
 from starlette.middleware.cors import CORSMiddleware
 
@@ -119,3 +120,13 @@ async def send_command(sid: str, command: ServerCommand):
     await server.send_command(command.command)
 
     return 200
+
+
+@app.delete("/servers/{sid}")
+async def delete_server(sid: str):
+    try:
+        manager.delete_server(sid)
+    except ServerRunningException:
+        return JSONResponse({"message": "Server is running"}, 400)
+
+    return JSONResponse({"message": "Server deleted"}, 200)
