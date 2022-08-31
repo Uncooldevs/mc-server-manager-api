@@ -1,6 +1,6 @@
 import asyncio
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from mc_server_interaction.exceptions import ServerRunningException
 from mc_server_interaction.server_manger import ServerManager
@@ -39,7 +39,7 @@ async def get_servers():
     resp_model = {
         "servers": [
             SimpleMinecraftServer(sid, server.server_config.name, server.server_config.version,
-                                  status=server.get_status().name).__dict__ for sid, server
+                                  status=server.status.name).__dict__ for sid, server
             in servers.items()
         ]
     }
@@ -75,7 +75,7 @@ async def get_server(sid: str):
         name=server.server_config.name,
         sid=sid,
         version=server.server_config.version,
-        status=server.get_status().name
+        status=server.status.name
     )
 
 
@@ -120,6 +120,33 @@ async def send_command(sid: str, command: ServerCommand):
     await server.send_command(command.command)
 
     return 200
+
+
+@app.websocket("/servers/{sid}/websocket")
+async def websocket_stream(websocket: WebSocket, sid: str):
+
+    server = manager.get_server(sid)
+    if not server:
+        return
+    await websocket.accept()
+
+    callback_installed = False
+
+    async def json_wrap(output: str):
+        await websocket.send_json({"type": "output", "output": output})
+
+    try:
+        await json_wrap(server.logs)
+        while True:
+            if not callback_installed and server.is_running:
+                server.process.callbacks.stdout.add_callback(json_wrap)
+                callback_installed = True
+            if callback_installed and not server.is_running:
+                callback_installed = False
+            await websocket.send_json({"type": "metrics", "metrics": server.system_load})
+            await asyncio.sleep(1)
+    except Exception:
+        return
 
 
 @app.delete("/servers/{sid}")
