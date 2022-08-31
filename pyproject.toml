@@ -5,7 +5,7 @@ description = ""
 authors = ["Dummerle <44114474+Dummerle@users.noreply.github.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.8"
 fastapi = "^0.81.0"
 uvicorn = "^0.18.3"
 mc-server-interaction = {git = "https://github.com/Uncooldevs/mc-server-interaction", rev = "main"}
