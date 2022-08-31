@@ -21,6 +21,7 @@ class SimpleMinecraftServer:
     server_id: str
     name: str
     version: str
+    status: str
 
 
 class GetServersResponse(BaseModel):
@@ -31,8 +32,8 @@ class GetServersResponse(BaseModel):
         schema_extra = {
             "example": {
                 "servers": [
-                    SimpleMinecraftServer("1", "server1", "1.18.1").__dict__,
-                    SimpleMinecraftServer("2", "server2", "1.16.2").__dict__
+                    SimpleMinecraftServer("1", "server1", "1.18.1", "RUNNING").__dict__,
+                    SimpleMinecraftServer("2", "server2", "1.16.2", "STOPPED").__dict__
                 ]
             }
         }
@@ -73,3 +74,14 @@ class MinecraftServerModel(BaseModel):
     sid: str = Field(..., title="Sid of the server")
     version: str = Field(..., title="Minecraft version of the server")
     status: str = Field(..., title="Status of the server")
+
+
+class ServerCommand(BaseModel):
+    command: str = Field(..., title="Server command")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "command": "say hello world"
+            }
+        }

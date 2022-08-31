@@ -6,7 +6,7 @@ from mc_server_interaction.server_manger import ServerManager
 from starlette.middleware.cors import CORSMiddleware
 
 from mc_server_manager_api.models import SimpleMinecraftServer, AvailableVersionsResponse, GetServersResponse, \
-    ServerCreationData, ServerCreatedModel, MinecraftServerModel
+    ServerCreationData, ServerCreatedModel, MinecraftServerModel, ServerCommand
 
 app = FastAPI()
 app.add_middleware(
@@ -37,7 +37,8 @@ async def get_servers():
     servers = manager.get_servers()
     resp_model = {
         "servers": [
-            SimpleMinecraftServer(sid, server.server_config.name, server.server_config.version).__dict__ for sid, server
+            SimpleMinecraftServer(sid, server.server_config.name, server.server_config.version,
+                                  status=server.get_status().name).__dict__ for sid, server
             in servers.items()
         ]
     }
@@ -105,3 +106,16 @@ async def stop_server(sid: str):
         return JSONResponse({"error": "Server is not running"}, 400)
     asyncio.create_task(server.stop())
     return JSONResponse({"message": "Server is stopping"})
+
+
+@app.post("/servers/{sid}/command")
+async def send_command(sid: str, command: ServerCommand):
+    server = manager.get_server(sid)
+    if not server:
+        return JSONResponse({"error": "Server not found"}, 404)
+    if not server.is_running:
+        return JSONResponse({"error": "Server is not running"}, 400)
+
+    await server.send_command(command.command)
+
+    return 200
