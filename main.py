@@ -1,6 +1,6 @@
 import asyncio
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket
 from fastapi.responses import JSONResponse
 from mc_server_interaction.exceptions import ServerRunningException
 from mc_server_interaction.server_manger import ServerManager
@@ -21,6 +21,18 @@ app.add_middleware(
 manager = ServerManager()
 
 
+def _get_servers():
+    servers = manager.get_servers()
+    resp = {
+        "servers": [
+            SimpleMinecraftServer(sid, server.server_config.name, server.server_config.version,
+                                  status=server.status.name).__dict__ for sid, server
+            in servers.items()
+        ]
+    }
+    return resp
+
+
 # do some load on startup
 @app.on_event("startup")
 async def startup():
@@ -35,15 +47,21 @@ async def shutdown():
 
 @app.get("/servers", response_model=GetServersResponse)
 async def get_servers():
-    servers = manager.get_servers()
-    resp_model = {
-        "servers": [
-            SimpleMinecraftServer(sid, server.server_config.name, server.server_config.version,
-                                  status=server.status.name).__dict__ for sid, server
-            in servers.items()
-        ]
-    }
-    return JSONResponse(resp_model, 200)
+    resp = _get_servers()
+    return JSONResponse(resp, 200)
+
+
+@app.websocket("/servers")
+async def get_servers_websocket(websocket: WebSocket):
+    await websocket.accept()
+
+    try:
+        while True:
+            resp = _get_servers()
+            await websocket.send_json(resp)
+            await asyncio.sleep(5)
+    except Exception:
+        return
 
 
 @app.get("/available_versions", response_model=AvailableVersionsResponse)
