@@ -1,4 +1,5 @@
 import asyncio
+import dataclasses
 
 from fastapi import FastAPI, WebSocket
 from fastapi.responses import JSONResponse
@@ -7,7 +8,7 @@ from mc_server_interaction.server_manger import ServerManager
 from starlette.middleware.cors import CORSMiddleware
 
 from mc_server_manager_api.models import SimpleMinecraftServer, AvailableVersionsResponse, GetServersResponse, \
-    ServerCreationData, ServerCreatedModel, MinecraftServerModel, ServerCommand
+    ServerCreationData, ServerCreatedModel, MinecraftServerModel, ServerCommand, PlayersResponse
 
 app = FastAPI()
 app.add_middleware(
@@ -97,6 +98,21 @@ async def get_server(sid: str):
         version=server.server_config.version,
         status=server.status.name
     )
+
+
+@app.get("/servers/{sid}/players", response_model=PlayersResponse)
+async def get_players(sid: str):
+    server = manager.get_server(sid)
+    if not server:
+        return JSONResponse({"error": "Server not found"}, 404)
+
+    players = server.players
+    resp = {
+        "online_players": [dataclasses.asdict(player) for player in players["online_players"]],
+        "op_players": [dataclasses.asdict(player) for player in players["op_players"]],
+        "banned_players": [dataclasses.asdict(player) for player in players["banned_players"]]
+    }
+    return JSONResponse(resp, 200)
 
 
 @app.post("/servers/{sid}/start")

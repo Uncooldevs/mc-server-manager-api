@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Union, Optional
+from typing import Optional
 from mc_server_interaction.server_manger.models import WorldGenerationSettings
 
 from pydantic import BaseModel, Field
@@ -83,5 +83,18 @@ class ServerCommand(BaseModel):
         schema_extra = {
             "example": {
                 "command": "say hello world"
+            }
+        }
+
+
+class PlayersResponse(BaseModel):
+    online_players: list = Field(..., title="List of players that are currently online")
+    op_players: list = Field(..., title="List of players that are op but currently not online")
+    banned_players: list = Field(..., title="List of players that are banned")
+
+    class Config:
+        schema_extra = {
+            "example": {
+
             }
         }
