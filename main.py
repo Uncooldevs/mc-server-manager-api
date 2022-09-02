@@ -54,11 +54,13 @@ async def get_servers():
 @app.websocket("/servers")
 async def get_servers_websocket(websocket: WebSocket):
     await websocket.accept()
-
+    old_resp = {}
     try:
         while True:
             resp = _get_servers()
-            await websocket.send_json(resp)
+            if resp != old_resp:
+                await websocket.send_json(resp)
+                old_resp = resp
             await asyncio.sleep(5)
     except Exception:
         return
