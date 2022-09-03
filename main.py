@@ -1,14 +1,20 @@
+import _hashlib
 import asyncio
 import dataclasses
+import io
+import os
+import zipfile
 
-from fastapi import FastAPI, WebSocket
+import mc_server_interaction.paths
+from fastapi import FastAPI, WebSocket, UploadFile, File
 from fastapi.responses import JSONResponse
 from mc_server_interaction.exceptions import ServerRunningException
 from mc_server_interaction.server_manger import ServerManager
 from starlette.middleware.cors import CORSMiddleware
 
 from mc_server_manager_api.models import SimpleMinecraftServer, AvailableVersionsResponse, GetServersResponse, \
-    ServerCreationData, ServerCreatedModel, MinecraftServerModel, ServerCommand, PlayersResponse
+    ServerCreationData, ServerCreatedModel, MinecraftServerModel, ServerCommand, PlayersResponse, WorldUploadResponse, \
+    ErrorModel
 
 app = FastAPI()
 app.add_middleware(
@@ -75,7 +81,7 @@ async def get_available_versions():
         }, 200)
 
 
-@app.post("/servers", response_model=ServerCreatedModel)
+@app.post("/servers", response_model=ServerCreatedModel, description="It is not possible yet, to use an uploaded world")
 async def create_server(server: ServerCreationData):
     try:
         sid, server = await manager.create_new_server(server.name, server.version)
@@ -160,7 +166,6 @@ async def send_command(sid: str, command: ServerCommand):
 
 @app.websocket("/servers/{sid}/websocket")
 async def websocket_stream(websocket: WebSocket, sid: str):
-
     server = manager.get_server(sid)
     if not server:
         return
@@ -193,3 +198,39 @@ async def delete_server(sid: str):
         return JSONResponse({"message": "Server is running"}, 400)
 
     return JSONResponse({"message": "Server deleted"}, 200)
+
+
+@app.post("/upload_world", summary="Upload a world for later use", responses={
+    201: {"model": WorldUploadResponse, "description": "Default response. Uploaded and saved the world"},
+    200: {"model": WorldUploadResponse, "description": "World exists with the same id"},
+    400: {"model": ErrorModel, "description": "Something is wrong with the file"}
+})
+async def upload_world(in_file: UploadFile = File(...)):
+    """
+    This takes an uploaded zip file with a single directory, which contains the world and returns a unique id of the uploaded world.
+    Save the id and use it when creating a new server (Not implemented)
+    """
+    if not in_file.filename.endswith(".zip"):
+        return ErrorModel(error="File must be a zip file"), 400
+
+    folder_name = _hashlib.openssl_md5(in_file.filename.encode()).hexdigest()
+
+    # Maybe we should use a new cache directory for api
+    out_file_path = mc_server_interaction.paths.cache_dir / "uploaded_worlds" / folder_name
+
+    # for debugging
+    # out_file_path = Path().cwd() / "uploaded_worlds" / folder_name
+
+    if not out_file_path.exists():
+        os.makedirs(str(out_file_path))
+
+    if out_file_path.exists() and out_file_path.is_dir() and len(os.listdir(out_file_path)) > 0:
+        # This is not bad, the world just exists, and we generate name by hash
+        # Maybe override
+        return WorldUploadResponse(message="World exists", world_id=str(out_file_path))
+
+    # find a better async option
+    with zipfile.ZipFile(io.BytesIO(await in_file.read()), 'r') as zip_file:
+        zip_file.extractall(str(out_file_path))
+
+    return WorldUploadResponse(message="success", world_id=str(folder_name)), 201
