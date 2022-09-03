@@ -4,6 +4,7 @@ import dataclasses
 import io
 import os
 import zipfile
+from pathlib import Path
 
 import mc_server_interaction.paths
 from fastapi import FastAPI, WebSocket, UploadFile, File
@@ -12,9 +13,12 @@ from mc_server_interaction.exceptions import ServerRunningException
 from mc_server_interaction.server_manger import ServerManager
 from starlette.middleware.cors import CORSMiddleware
 
+from mc_server_manager_api import utils
 from mc_server_manager_api.models import SimpleMinecraftServer, AvailableVersionsResponse, GetServersResponse, \
     ServerCreationData, ServerCreatedModel, MinecraftServerModel, ServerCommand, PlayersResponse, WorldUploadResponse, \
     ErrorModel
+
+world_upload_path = mc_server_interaction.paths.cache_dir / "uploaded_worlds"
 
 app = FastAPI()
 app.add_middleware(
@@ -81,10 +85,18 @@ async def get_available_versions():
         }, 200)
 
 
-@app.post("/servers", response_model=ServerCreatedModel, description="It is not possible yet, to use an uploaded world")
+@app.post("/servers", response_model=ServerCreatedModel)
 async def create_server(server: ServerCreationData):
+    world_path = None
+    if server.world_id:
+        path = world_upload_path / server.world_id
+        directory = os.listdir(str(path))[0]
+        if path.exists() and utils.is_map_directory(path / directory):
+            world_path = str(path / directory)
+
     try:
-        sid, server = await manager.create_new_server(server.name, server.version)
+        sid, server = await manager.create_new_server(name=server.name, version=server.version, world_path=world_path,
+                                                      world_generation_settings=server.world_generation_settings)
     except Exception as e:
         return JSONResponse({
             "error": e
@@ -216,7 +228,7 @@ async def upload_world(in_file: UploadFile = File(...)):
     folder_name = _hashlib.openssl_md5(in_file.filename.encode()).hexdigest()
 
     # Maybe we should use a new cache directory for api
-    out_file_path = mc_server_interaction.paths.cache_dir / "uploaded_worlds" / folder_name
+    out_file_path = world_upload_path / folder_name
 
     # for debugging
     # out_file_path = Path().cwd() / "uploaded_worlds" / folder_name
