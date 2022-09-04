@@ -19,7 +19,7 @@ class AvailableVersionsResponse(BaseModel):
 
 @dataclass
 class SimpleMinecraftServer:
-    server_id: str
+    sid: str
     name: str
     version: str
     status: str
