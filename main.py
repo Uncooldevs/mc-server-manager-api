@@ -4,7 +4,8 @@ import dataclasses
 import io
 import os
 import zipfile
-from pathlib import Path
+from functools import partial
+from typing import Union
 
 import mc_server_interaction.paths
 from fastapi import FastAPI, WebSocket, UploadFile, File
@@ -99,8 +100,8 @@ async def create_server(server: ServerCreationData):
                                                       world_generation_settings=server.world_generation_settings)
     except Exception as e:
         return JSONResponse({
-            "error": e
-        })
+            "error": str(e)
+        }, 500)
     asyncio.create_task(manager.install_server(sid))
     return ServerCreatedModel(message="Lol", sid=sid)
 
@@ -114,7 +115,8 @@ async def get_server(sid: str):
         name=server.server_config.name,
         sid=sid,
         version=server.server_config.version,
-        status=server.status.name
+        status=server.status.name,
+        properties=server.properties.to_dict()
     )
 
 
@@ -183,20 +185,26 @@ async def websocket_stream(websocket: WebSocket, sid: str):
         return
     await websocket.accept()
 
-    callback_installed = False
+    async def wrap_json(output: Union[str, dict], callback_name: str):
+        await websocket.send_json({"type": callback_name, "value": output})
 
-    async def json_wrap(output: str):
-        await websocket.send_json({"type": "output", "output": output})
+    server.callbacks.system_metrics.add_callback(partial(wrap_json, callback_name="system_metrics"))
+    server.callbacks.properties.add_callback(partial(wrap_json, callback_name="properties"))
+    server.callbacks.output.add_callback(partial(wrap_json, callback_name="output"))
+    server.callbacks.players.add_callback(partial(wrap_json, callback_name="players"))
+    server.callbacks.status.add_callback(partial(wrap_json, callback_name="status"))
 
     try:
-        await json_wrap(server.logs)
+        await wrap_json(server.logs, "output")
+        players = server.players
+        players = {
+            "online_players": [dataclasses.asdict(player) for player in players["online_players"]],
+            "op_players": [dataclasses.asdict(player) for player in players["op_players"]],
+            "banned_players": [dataclasses.asdict(player) for player in players["banned_players"]]
+        }
+        await wrap_json(players, "players")
+        await wrap_json(server.system_load, "system_metrics")
         while True:
-            if not callback_installed and server.is_running:
-                server.process.callbacks.stdout.add_callback(json_wrap)
-                callback_installed = True
-            if callback_installed and not server.is_running:
-                callback_installed = False
-            await websocket.send_json({"type": "metrics", "metrics": server.system_load})
             await asyncio.sleep(1)
     except Exception:
         return

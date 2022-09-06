@@ -77,6 +77,7 @@ class MinecraftServerModel(BaseModel):
     sid: str = Field(..., title="Sid of the server")
     version: str = Field(..., title="Minecraft version of the server")
     status: str = Field(..., title="Status of the server")
+    properties: dict = Field(..., title="Properties of the Minecraft server")
 
 
 class ServerCommand(BaseModel):
