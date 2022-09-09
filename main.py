@@ -41,6 +41,7 @@ router = APIRouter(
 
 if os.path.isdir("./web/static"):
     app.mount("/static", StaticFiles(directory="web/static"), name="static")
+    app.mount("/", StaticFiles(directory="web/"), name="")
 
 def _get_servers():
     servers = manager.get_servers()
