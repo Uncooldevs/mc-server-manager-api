@@ -7,9 +7,11 @@ import zipfile
 from functools import partial
 from typing import Union
 
+from starlette.staticfiles import StaticFiles
+
 import mc_server_interaction.paths
-from fastapi import FastAPI, WebSocket, UploadFile, File
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, WebSocket, UploadFile, File, APIRouter
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from mc_server_interaction.exceptions import ServerRunningException
 from mc_server_interaction.server_manger import ServerManager
 from starlette.middleware.cors import CORSMiddleware
@@ -32,6 +34,13 @@ app.add_middleware(
 
 manager = ServerManager()
 
+router = APIRouter(
+    prefix="/api",
+    responses={404: {"description": "Not found"}},
+)
+
+if os.path.isdir("./web/static"):
+    app.mount("/static", StaticFiles(directory="web/static"), name="static")
 
 def _get_servers():
     servers = manager.get_servers()
@@ -57,13 +66,24 @@ async def shutdown():
     manager.config.save()
 
 
-@app.get("/servers", response_model=GetServersResponse)
+@app.get("/")
+def index():
+    if os.path.exists("./web/index.html"):
+        return FileResponse(
+            "web/index.html",
+            200
+        )
+    else:
+        return RedirectResponse("/docs")
+
+
+@router.get("/servers", response_model=GetServersResponse)
 async def get_servers():
     resp = _get_servers()
     return JSONResponse(resp, 200)
 
 
-@app.websocket("/servers")
+@router.websocket("/api/servers")
 async def get_servers_websocket(websocket: WebSocket):
     await websocket.accept()
     old_resp = {}
@@ -78,7 +98,7 @@ async def get_servers_websocket(websocket: WebSocket):
         return
 
 
-@app.get("/available_versions", response_model=AvailableVersionsResponse)
+@router.get("/available_versions", response_model=AvailableVersionsResponse)
 async def get_available_versions():
     return JSONResponse(
         {
@@ -86,7 +106,7 @@ async def get_available_versions():
         }, 200)
 
 
-@app.post("/servers", response_model=ServerCreatedModel)
+@router.post("/servers", response_model=ServerCreatedModel)
 async def create_server(server: ServerCreationData):
     world_path = None
     if server.world_id:
@@ -106,7 +126,7 @@ async def create_server(server: ServerCreationData):
     return ServerCreatedModel(message="Lol", sid=sid)
 
 
-@app.get("/servers/{sid}")
+@router.get("/servers/{sid}")
 async def get_server(sid: str):
     server = manager.get_server(sid)
     if not server:
@@ -120,7 +140,7 @@ async def get_server(sid: str):
     )
 
 
-@app.get("/servers/{sid}/players", response_model=PlayersResponse)
+@router.get("/servers/{sid}/players", response_model=PlayersResponse)
 async def get_players(sid: str):
     server = manager.get_server(sid)
     if not server:
@@ -135,7 +155,7 @@ async def get_players(sid: str):
     return JSONResponse(resp, 200)
 
 
-@app.post("/servers/{sid}/start")
+@router.post("/servers/{sid}/start")
 async def start_server(sid: str):
     server = manager.get_server(sid)
     if not server:
@@ -153,7 +173,7 @@ async def start_server(sid: str):
     return JSONResponse({"message": "Server is starting"}, 200)
 
 
-@app.post("/servers/{sid}/stop")
+@router.post("/servers/{sid}/stop")
 async def stop_server(sid: str):
     server = manager.get_server(sid)
     if not server:
@@ -165,7 +185,7 @@ async def stop_server(sid: str):
     return JSONResponse({"message": "Server is stopping"})
 
 
-@app.post("/servers/{sid}/command")
+@router.post("/servers/{sid}/command")
 async def send_command(sid: str, command: ServerCommand):
     server = manager.get_server(sid)
     if not server:
@@ -178,7 +198,7 @@ async def send_command(sid: str, command: ServerCommand):
     return 200
 
 
-@app.websocket("/servers/{sid}/websocket")
+@router.websocket("/servers/{sid}/websocket")
 async def websocket_stream(websocket: WebSocket, sid: str):
     server = manager.get_server(sid)
     if not server:
@@ -210,7 +230,7 @@ async def websocket_stream(websocket: WebSocket, sid: str):
         return
 
 
-@app.delete("/servers/{sid}")
+@router.delete("/servers/{sid}")
 async def delete_server(sid: str):
     try:
         manager.delete_server(sid)
@@ -220,7 +240,7 @@ async def delete_server(sid: str):
     return JSONResponse({"message": "Server deleted"}, 200)
 
 
-@app.post("/upload_world", summary="Upload a world for later use", responses={
+@router.post("/upload_world", summary="Upload a world for later use", responses={
     201: {"model": WorldUploadResponse, "description": "Default response. Uploaded and saved the world"},
     200: {"model": WorldUploadResponse, "description": "World exists with the same id"},
     400: {"model": ErrorModel, "description": "Something is wrong with the file"}
@@ -254,3 +274,5 @@ async def upload_world(in_file: UploadFile = File(...)):
         zip_file.extractall(str(out_file_path))
 
     return WorldUploadResponse(message="success", world_id=str(folder_name)), 201
+
+app.include_router(router)

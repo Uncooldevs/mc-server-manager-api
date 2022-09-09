@@ -12,6 +12,9 @@ script:
   - cp McManager.png AppDir/usr/share/icons/hicolor/256x256/apps/
   # Install application dependencies
   - python3 -m pip install --ignore-installed --prefix=/usr --root=AppDir mc_server_interaction mcstatus --no-deps aioconsole
+  - mkdir AppDir/usr/src/mc-server-manager-api/web
+  - wget https://github.com/Uncooldevs/mc-manager-frontend/releases/download/0.1.0/Build.zip
+  - unzip Build.zip AppDir/usr/src/mc-server-manager-api/web
 
 AppDir:
   path: AppDir
