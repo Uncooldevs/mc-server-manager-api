@@ -41,7 +41,6 @@ if os.path.isdir("./web/static"):
     app.mount("/static", StaticFiles(directory="web/static"), name="static")
     app.mount("/", StaticFiles(directory="web/"), name="")
 
-
 def _get_servers():
     servers = manager.get_servers()
     resp = {
@@ -102,9 +101,8 @@ async def get_servers_websocket(websocket: WebSocket):
 async def get_available_versions():
     return JSONResponse(
         {
-            "available_versions": manager.available_versions.get_version_list()
-        }, 200
-    )
+            "available_versions": list(manager.available_versions.available_versions.keys())
+        }, 200)
 
 
 @router.post("/servers", response_model=ServerCreatedModel)
@@ -275,43 +273,5 @@ async def upload_world(in_file: UploadFile = File(...)):
         zip_file.extractall(str(out_file_path))
 
     return WorldUploadResponse(message="success", world_id=str(folder_name)), 201
-
-
-@router.post("servers/{sid}/property", response_model=PropertyResponse)
-def update_properties(sid: str, props: PropertyModel):
-    server = manager.get_server(sid)
-    if not server:
-        return JSONResponse({"error": "Server not found"}, 404)
-
-    fails = {}
-
-    for key, value in props.properties.items():
-        try:
-            if key == "ram":
-                server.server_config.ram = int(value)
-                manager.config.save()
-            elif key == "name":
-                server.server_config.name = value
-                manager.config.save()
-            else:
-                server.set_property(key, value)
-        except Exception as e:
-            fails[key] = str(e)
-    server.save_properties()
-
-    return PropertyResponse(fails=fails)
-
-
-@router.get("servers/{sid}/whitelist", response_model=WhitelistResponse)
-def get_whitelist(sid: str):
-    server = manager.get_server(sid)
-    if not server:
-        return JSONResponse({"error": "Server not found"}, 404)
-
-    return WhitelistResponse(
-        whitelisted_players=server.whitelisted_players
-    )
-
-
 
 app.include_router(router)

@@ -106,6 +106,42 @@ class PlayersResponse(BaseModel):
         }
 
 
+class AllWorldsResponse(BaseModel):
+    world: dict = Field(..., title="Dict of sids with the respective lists of worlds")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                1: [
+                    {
+                        "name": "My World",
+                        "path": "/path/to/the/world",
+                        "version": "1.19.2",
+                        "type": "Default"
+                    }
+                ]
+            }
+        }
+
+
+class ServerWorldsResponse(BaseModel):
+    worlds: list = Field(..., title="List with all worlds of the server")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "worlds": [
+                    {
+                        "name": "My World",
+                        "path": "/path/to/the/world",
+                        "version": "1.19.2",
+                        "type": "Default"
+                    }
+                ]
+            }
+        }
+
+
 class WorldUploadResponse(BaseModel):
     message: str = Field(..., title="success")
     world_id: str = Field(..., title="Id of the new created world",
