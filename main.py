@@ -91,7 +91,7 @@ async def get_servers():
     return JSONResponse(resp, 200)
 
 
-@router.websocket("/api/servers")
+@router.websocket("/servers")
 async def get_servers_websocket(websocket: WebSocket):
     await websocket.accept()
     old_resp = {}
@@ -127,6 +127,15 @@ async def create_server(server: ServerCreationData):
         }, 500)
     asyncio.create_task(manager.install_server(sid))
     return ServerCreatedModel(message="Lol", sid=sid)
+
+
+@router.get("/worlds", response_model=AllWorldsResponse)
+async def get_worlds():
+    worlds_dict = {}
+    for sid in manager.get_servers():
+        server = manager.get_server(sid)
+        worlds_dict[sid] = _get_worlds(server)
+    return JSONResponse({"worlds": worlds_dict}, 200)
 
 
 @router.get("/servers/{sid}", response_model=MinecraftServerModel)
