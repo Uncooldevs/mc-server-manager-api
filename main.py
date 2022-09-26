@@ -219,6 +219,7 @@ async def get_worlds(sid: str):
         return JSONResponse({"error": "Server not found"}, 404)
     return JSONResponse({"worlds": _get_worlds(server)}, 200)
 
+
 @router.post("/servers/{sid}/copy_world")
 async def copy_world(sid: str, dest: str = None, world_name: str = None, override: bool = False):
     server = manager.get_server(sid)
@@ -239,6 +240,28 @@ async def copy_world(sid: str, dest: str = None, world_name: str = None, overrid
     except [IsADirectoryError, NotADirectoryError, OSError]:
         return JSONResponse({"message": "Failed to copy world, directory already exists"})
     return JSONResponse({"message": "Copied world to server"}, 200)
+
+
+@router.post("/servers/{sid}/create_world")
+async def create_world(sid: str, world_generation_settings: WorldGenerationData):
+    server = manager.get_server(sid)
+    if not server:
+        return JSONResponse({"error": "Server not found"}, 404)
+    try:
+        await server.create_new_world(world_generation_settings.name, world_generation_settings.data)
+    except WorldExistsException:
+        return JSONResponse({"error": "A world with this name does already exist"})
+    asyncio.create_task(server.set_active_world(world_generation_settings.name, new=True))
+    return JSONResponse({"message": "The new world will be created after restart"}, 202)
+
+
+@router.post("/servers/{sid}/change_world")
+async def change_world(sid: str, world_name: str):
+    server = manager.get_server(sid)
+    if not server:
+        return JSONResponse({"error": "Server not found"}, 404)
+    asyncio.create_task(server.set_active_world(world_name))
+    return JSONResponse({"message": f"Set active world to {world_name}"}, 202)
 
 
 @router.websocket("/servers/{sid}/websocket")
