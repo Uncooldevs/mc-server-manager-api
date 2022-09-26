@@ -103,7 +103,7 @@ async def get_servers_websocket(websocket: WebSocket):
 async def get_available_versions():
     return JSONResponse(
         {
-            "available_versions": list(manager.available_versions.available_versions.keys())
+            "available_versions": manager.available_versions.get_version_list()
         }, 200)
 
 
