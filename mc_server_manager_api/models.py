@@ -61,6 +61,19 @@ class ServerCreationData(BaseModel):
         }
 
 
+class WorldGenerationData(BaseModel):
+    name: str = Field(..., title="Name of the new world")
+    data: Optional[WorldGenerationSettings] = Field(None, title="World generation settings")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "name": "New world",
+                "data": WorldGenerationSettings().__dict__
+            }
+        }
+
+
 class ServerCreatedModel(BaseModel):
     message: str = Field(..., title="Message", description="Message to show the user")
     sid: str = Field(..., title="Sid of the server")

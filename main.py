@@ -12,7 +12,7 @@ from starlette.staticfiles import StaticFiles
 import mc_server_interaction.paths
 from fastapi import FastAPI, WebSocket, UploadFile, File, APIRouter
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
-from mc_server_interaction.exceptions import ServerRunningException
+from mc_server_interaction.exceptions import ServerRunningException, WorldExistsException
 from mc_server_interaction.server_manger import ServerManager
 from starlette.middleware.cors import CORSMiddleware
 
@@ -195,6 +195,35 @@ async def send_command(sid: str, command: ServerCommand):
     await server.send_command(command.command)
 
     return 200
+
+
+@router.get("/servers/{sid}/worlds", response_model=ServerWorldsResponse)
+async def get_worlds(sid: str):
+    server = manager.get_server(sid)
+    if not server:
+        return JSONResponse({"error": "Server not found"}, 404)
+    return JSONResponse({"worlds": _get_worlds(server)}, 200)
+
+@router.post("/servers/{sid}/copyworld")
+async def copy_world(sid: str, dest: str = None, world_name: str = None, override: bool = False):
+    server = manager.get_server(sid)
+    if not server:
+        return JSONResponse({"error": "Server not found"}, 404)
+    if not dest:
+        return JSONResponse({"error": "Query parameter dest is required"}, 400)
+    if not world_name:
+        return JSONResponse({"error": "Query parameter world_name is required"}, 400)
+    dest_server = manager.get_server(dest)
+    if not dest_server:
+        return JSONResponse({"error": "Destination server not found"}, 404)
+    world = server.get_world(world_name)
+    if not world:
+        return JSONResponse({"error": "World not found"}, 404)
+    try:
+        await world.copy_to_server(dest_server, override=override)
+    except [IsADirectoryError, NotADirectoryError, OSError]:
+        return JSONResponse({"message": "Failed to copy world, directory already exists"})
+    return JSONResponse({"message": "Copied world to server"}, 200)
 
 
 @router.websocket("/servers/{sid}/websocket")
