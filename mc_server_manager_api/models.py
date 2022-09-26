@@ -120,3 +120,32 @@ class WorldUploadResponse(BaseModel):
 
 class ErrorModel(BaseModel):
     error: str = Field(..., title="Error message")
+
+
+class PropertyModel(BaseModel):
+    properties: dict = Field(..., title="Dict of updated properties")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "properties": {
+                    "ram": 2048,
+                    "generate-structures": True,
+                    "...": "value"
+                },
+            }
+        }
+
+
+class PropertyResponse(BaseModel):
+    fails: dict = Field(..., title="Dict of failed properties (Wrong type etc)")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "fails": {
+                    "ram": "ValueError: invalid literal for int() with base 10: 'abc'"
+                },
+                "world_id": "49f851fff7bfee4cba5c21aebe699c2d"
+            }
+        }
