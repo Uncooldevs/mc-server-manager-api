@@ -234,6 +234,8 @@ async def websocket_stream(websocket: WebSocket, sid: str):
     await websocket.accept()
 
     async def wrap_json(output: Union[str, dict], callback_name: str):
+        if callback_name == "status":
+            output = output.name
         await websocket.send_json({"type": callback_name, "value": output})
 
     server.callbacks.system_metrics.add_callback(partial(wrap_json, callback_name="system_metrics"))
