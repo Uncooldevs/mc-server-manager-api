@@ -302,4 +302,16 @@ def update_properties(sid: str, props: PropertyModel):
     return PropertyResponse(fails=fails)
 
 
+@router.get("servers/{sid}/whitelist", response_model=WhitelistResponse)
+def get_whitelist(sid: str):
+    server = manager.get_server(sid)
+    if not server:
+        return JSONResponse({"error": "Server not found"}, 404)
+
+    return WhitelistResponse(
+        whitelisted_players=server.whitelisted_players
+    )
+
+
+
 app.include_router(router)

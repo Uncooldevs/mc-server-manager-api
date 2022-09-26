@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional
+
+from mc_server_interaction.interaction.models import Player
 from mc_server_interaction.server_manger.models import WorldGenerationSettings
 
 from pydantic import BaseModel, Field
@@ -112,7 +114,7 @@ class WorldUploadResponse(BaseModel):
     class Config:
         schema_extra = {
             "example": {
-                "meesage": "success",
+                "message": "success",
                 "world_id": "49f851fff7bfee4cba5c21aebe699c2d"
             }
         }
@@ -146,6 +148,19 @@ class PropertyResponse(BaseModel):
                 "fails": {
                     "ram": "ValueError: invalid literal for int() with base 10: 'abc'"
                 },
-                "world_id": "49f851fff7bfee4cba5c21aebe699c2d"
+            }
+        }
+
+
+class WhitelistResponse(BaseModel):
+    whitelisted_players: list = Field(..., title="List of whitelisted players")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "whitelisted_players": [
+                    Player("ObiWanKenobi").__dict__,
+                    Player("CountDooku", is_banned=True).__dict__
+                ]
             }
         }
