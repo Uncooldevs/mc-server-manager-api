@@ -5,6 +5,7 @@ import io
 import os
 import zipfile
 from functools import partial
+from pathlib import Path
 from typing import Union
 
 from starlette.staticfiles import StaticFiles
@@ -12,7 +13,7 @@ from starlette.staticfiles import StaticFiles
 import mc_server_interaction.paths
 from fastapi import FastAPI, WebSocket, UploadFile, File, APIRouter
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
-from mc_server_interaction.exceptions import ServerRunningException
+from mc_server_interaction.exceptions import ServerRunningException, WorldExistsException
 from mc_server_interaction.server_manger import ServerManager
 from starlette.middleware.cors import CORSMiddleware
 
@@ -40,7 +41,6 @@ router = APIRouter(
 if os.path.isdir("./web/static"):
     app.mount("/static", StaticFiles(directory="web/static"), name="static")
     app.mount("/", StaticFiles(directory="web/"), name="")
-
 
 def _get_servers():
     servers = manager.get_servers()
@@ -102,9 +102,8 @@ async def get_servers_websocket(websocket: WebSocket):
 async def get_available_versions():
     return JSONResponse(
         {
-            "available_versions": manager.available_versions.get_version_list()
-        }, 200
-    )
+            "available_versions": list(manager.available_versions.available_versions.keys())
+        }, 200)
 
 
 @router.post("/servers", response_model=ServerCreatedModel)
@@ -199,6 +198,35 @@ async def send_command(sid: str, command: ServerCommand):
     return 200
 
 
+@router.get("/servers/{sid}/worlds", response_model=ServerWorldsResponse)
+async def get_worlds(sid: str):
+    server = manager.get_server(sid)
+    if not server:
+        return JSONResponse({"error": "Server not found"}, 404)
+    return JSONResponse({"worlds": _get_worlds(server)}, 200)
+
+@router.post("/servers/{sid}/copyworld")
+async def copy_world(sid: str, dest: str = None, world_name: str = None, override: bool = False):
+    server = manager.get_server(sid)
+    if not server:
+        return JSONResponse({"error": "Server not found"}, 404)
+    if not dest:
+        return JSONResponse({"error": "Query parameter dest is required"}, 400)
+    if not world_name:
+        return JSONResponse({"error": "Query parameter world_name is required"}, 400)
+    dest_server = manager.get_server(dest)
+    if not dest_server:
+        return JSONResponse({"error": "Destination server not found"}, 404)
+    world = server.get_world(world_name)
+    if not world:
+        return JSONResponse({"error": "World not found"}, 404)
+    try:
+        await world.copy_to_server(dest_server, override=override)
+    except [IsADirectoryError, NotADirectoryError, OSError]:
+        return JSONResponse({"message": "Failed to copy world, directory already exists"})
+    return JSONResponse({"message": "Copied world to server"}, 200)
+
+
 @router.websocket("/servers/{sid}/websocket")
 async def websocket_stream(websocket: WebSocket, sid: str):
     server = manager.get_server(sid)
@@ -207,6 +235,8 @@ async def websocket_stream(websocket: WebSocket, sid: str):
     await websocket.accept()
 
     async def wrap_json(output: Union[str, dict], callback_name: str):
+        if callback_name == "status":
+            output = output.name
         await websocket.send_json({"type": callback_name, "value": output})
 
     server.callbacks.system_metrics.add_callback(partial(wrap_json, callback_name="system_metrics"))
@@ -241,12 +271,12 @@ async def delete_server(sid: str):
     return JSONResponse({"message": "Server deleted"}, 200)
 
 
-@router.post("/upload_world", summary="Upload a world for later use", responses={
+@router.post("/servers/{sid}/upload_world", summary="Upload a world for later use", responses={
     201: {"model": WorldUploadResponse, "description": "Default response. Uploaded and saved the world"},
     200: {"model": WorldUploadResponse, "description": "World exists with the same id"},
     400: {"model": ErrorModel, "description": "Something is wrong with the file"}
 })
-async def upload_world(in_file: UploadFile = File(...)):
+async def upload_world(sid: str, in_file: UploadFile = File(...)):
     """
     This takes an uploaded zip file with a single directory, which contains the world and returns a unique id of the uploaded world.
     Save the id and use it when creating a new server (Not implemented)
@@ -254,13 +284,17 @@ async def upload_world(in_file: UploadFile = File(...)):
     if not in_file.filename.endswith(".zip"):
         return ErrorModel(error="File must be a zip file"), 400
 
-    folder_name = _hashlib.openssl_md5(in_file.filename.encode()).hexdigest()
+    server = manager.get_server(sid)
+    if not server:
+        return 404
 
-    # Maybe we should use a new cache directory for api
-    out_file_path = world_upload_path / folder_name
+    dir_name = in_file.filename.replace(".zip", "")
+    dir_name = "".join(c for c in dir_name if c.isalnum() or c in "_- !()[]{}")
 
-    # for debugging
-    # out_file_path = Path().cwd() / "uploaded_worlds" / folder_name
+    if not dir_name:
+        return JSONResponse({"error": "Invalid world name"}, 400)
+
+    out_file_path = Path(server.server_config.path) / "worlds" / dir_name
 
     if not out_file_path.exists():
         os.makedirs(str(out_file_path))
@@ -268,38 +302,14 @@ async def upload_world(in_file: UploadFile = File(...)):
     if out_file_path.exists() and out_file_path.is_dir() and len(os.listdir(out_file_path)) > 0:
         # This is not bad, the world just exists, and we generate name by hash
         # Maybe override
-        return WorldUploadResponse(message="World exists", world_id=str(out_file_path))
+        return WorldUploadResponse(message="World exists")
 
     # find a better async option
     with zipfile.ZipFile(io.BytesIO(await in_file.read()), 'r') as zip_file:
         zip_file.extractall(str(out_file_path))
 
-    return WorldUploadResponse(message="success", world_id=str(folder_name)), 201
+    server.load_worlds()
 
-
-@router.post("servers/{sid}/property", response_model=PropertyResponse)
-def update_properties(sid: str, props: PropertyModel):
-    server = manager.get_server(sid)
-    if not server:
-        return JSONResponse({"error": "Server not found"}, 404)
-
-    fails = {}
-
-    for key, value in props.properties.items():
-        try:
-            if key == "ram":
-                server.server_config.ram = int(value)
-                manager.config.save()
-            elif key == "name":
-                server.server_config.name = value
-                manager.config.save()
-            else:
-                server.set_property(key, value)
-        except Exception as e:
-            fails[key] = str(e)
-    server.save_properties()
-
-    return PropertyResponse(fails=fails)
-
+    return WorldUploadResponse(message="success"), 201
 
 app.include_router(router)

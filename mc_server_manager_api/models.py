@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional
+
+from mc_server_interaction.interaction.models import Player
 from mc_server_interaction.server_manger.models import WorldGenerationSettings
 
 from pydantic import BaseModel, Field
@@ -59,6 +61,19 @@ class ServerCreationData(BaseModel):
         }
 
 
+class WorldGenerationData(BaseModel):
+    name: str = Field(..., title="Name of the new world")
+    data: Optional[WorldGenerationSettings] = Field(None, title="World generation settings")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "name": "New world",
+                "data": WorldGenerationSettings().__dict__
+            }
+        }
+
+
 class ServerCreatedModel(BaseModel):
     message: str = Field(..., title="Message", description="Message to show the user")
     sid: str = Field(..., title="Sid of the server")
@@ -104,16 +119,49 @@ class PlayersResponse(BaseModel):
         }
 
 
+class AllWorldsResponse(BaseModel):
+    world: dict = Field(..., title="Dict of sids with the respective lists of worlds")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                1: [
+                    {
+                        "name": "My World",
+                        "path": "/path/to/the/world",
+                        "version": "1.19.2",
+                        "type": "Default"
+                    }
+                ]
+            }
+        }
+
+
+class ServerWorldsResponse(BaseModel):
+    worlds: list = Field(..., title="List with all worlds of the server")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "worlds": [
+                    {
+                        "name": "My World",
+                        "path": "/path/to/the/world",
+                        "version": "1.19.2",
+                        "type": "Default"
+                    }
+                ]
+            }
+        }
+
+
 class WorldUploadResponse(BaseModel):
     message: str = Field(..., title="success")
-    world_id: str = Field(..., title="Id of the new created world",
-                          description="This is a unique id of the uploaded world. Save it and use it, when creating a new server")
 
     class Config:
         schema_extra = {
             "example": {
                 "meesage": "success",
-                "world_id": "49f851fff7bfee4cba5c21aebe699c2d"
             }
         }
 
@@ -146,6 +194,19 @@ class PropertyResponse(BaseModel):
                 "fails": {
                     "ram": "ValueError: invalid literal for int() with base 10: 'abc'"
                 },
-                "world_id": "49f851fff7bfee4cba5c21aebe699c2d"
+            }
+        }
+
+
+class WhitelistResponse(BaseModel):
+    whitelisted_players: list = Field(..., title="List of whitelisted players")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "whitelisted_players": [
+                    Player("ObiWanKenobi").__dict__,
+                    Player("CountDooku", is_banned=True).__dict__
+                ]
             }
         }
