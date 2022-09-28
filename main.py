@@ -1,9 +1,9 @@
-import _hashlib
 import asyncio
 import dataclasses
 import io
 import os
 import zipfile
+from datetime import datetime
 from functools import partial
 from pathlib import Path
 from typing import Union
@@ -14,7 +14,7 @@ import mc_server_interaction.paths
 from fastapi import FastAPI, WebSocket, UploadFile, File, APIRouter
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from mc_server_interaction.exceptions import ServerRunningException
-from mc_server_interaction.server_manger import ServerManager
+from mc_server_interaction.manager import ServerManager
 from starlette.middleware.cors import CORSMiddleware
 
 from mc_server_manager_api.models import *
@@ -140,7 +140,8 @@ async def get_server(sid: str):
         version=server.server_config.version,
         status=server.status.name,
         worlds=[_get_worlds(server)],
-        properties=server.properties.to_dict()
+        properties=server.properties.to_dict(),
+        backups=manager.backup_manager.get_backup(sid)
     )
 
 
@@ -209,7 +210,7 @@ async def get_worlds(sid: str):
         return JSONResponse({"error": "Server not found"}, 404)
     return JSONResponse({"worlds": _get_worlds(server)}, 200)
 
-@router.post("/servers/{sid}/copyworld")
+@router.post("/servers/{sid}/copy_world")
 async def copy_world(sid: str, dest: str = None, world_name: str = None, override: bool = False):
     server = manager.get_server(sid)
     if not server:
@@ -315,5 +316,21 @@ async def upload_world(sid: str, in_file: UploadFile = File(...)):
     server.load_worlds()
 
     return WorldUploadResponse(message="success"), 201
+
+
+@router.post("/servers/{sid}/backup")
+async def create_backup(sid: str, body: CreateBackupModel):
+    server = manager.get_server(sid)
+    if not server:
+        return 404
+
+    world = server.get_world(body.world_name)
+    if not world:
+        return 404
+
+    asyncio.create_task(manager.backup_manager.create_backup(sid, body.world_name))
+
+    return 200
+
 
 app.include_router(router)

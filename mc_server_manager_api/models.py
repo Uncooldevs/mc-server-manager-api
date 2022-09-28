@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from mc_server_interaction.interaction.models import Player
-from mc_server_interaction.server_manger.models import WorldGenerationSettings
+from mc_server_interaction.manager.models import WorldGenerationSettings
 
 from pydantic import BaseModel, Field
 
@@ -92,6 +92,7 @@ class MinecraftServerModel(BaseModel):
     status: str = Field(..., title="Status of the server")
     worlds: list = Field(..., title="Worlds")
     properties: dict = Field(..., title="Properties of the Minecraft server")
+    backups: list = Field(..., title="List of backups")
 
     class Config:
         schema_extra = {
@@ -112,7 +113,14 @@ class MinecraftServerModel(BaseModel):
                     "allow-flight": False,
                     "allow-nether": True,
                     "difficulty": "easy"
-                }
+                },
+                "backups": [
+                    {
+                        "time": 12345.54,
+                        "world": "MyWorld",
+                        "version": "1.19.2"
+                    }
+                ]
             }
         }
 
@@ -232,3 +240,7 @@ class WhitelistResponse(BaseModel):
                 ]
             }
         }
+
+
+class CreateBackupModel(BaseModel):
+    world_name: str = Field(..., title="Name of the world")
