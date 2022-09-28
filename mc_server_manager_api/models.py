@@ -157,14 +157,11 @@ class ServerWorldsResponse(BaseModel):
 
 class WorldUploadResponse(BaseModel):
     message: str = Field(..., title="success")
-    world_id: str = Field(..., title="Id of the new created world",
-                          description="This is a unique id of the uploaded world. Save it and use it, when creating a new server")
 
     class Config:
         schema_extra = {
             "example": {
-                "message": "success",
-                "world_id": "49f851fff7bfee4cba5c21aebe699c2d"
+                "meesage": "success",
             }
         }
 
