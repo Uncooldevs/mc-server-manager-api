@@ -109,11 +109,6 @@ async def get_available_versions():
 @router.post("/servers", response_model=ServerCreatedModel)
 async def create_server(server: ServerCreationData):
     world_path = None
-    if server.world_id:
-        path = world_upload_path / server.world_id
-        directory = os.listdir(str(path))[0]
-        if path.exists() and utils.is_map_directory(path / directory):
-            world_path = str(path / directory)
 
     try:
         sid, server = await manager.create_new_server(name=server.name, version=server.version, world_path=world_path,
