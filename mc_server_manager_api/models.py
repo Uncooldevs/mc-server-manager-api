@@ -90,7 +90,31 @@ class MinecraftServerModel(BaseModel):
     sid: str = Field(..., title="Sid of the server")
     version: str = Field(..., title="Minecraft version of the server")
     status: str = Field(..., title="Status of the server")
+    worlds: list = Field(..., title="Worlds")
     properties: dict = Field(..., title="Properties of the Minecraft server")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "name": "MyServer",
+                "sid": "42",
+                "version": "1.19.2",
+                "status": "RUNNING",
+                "worlds": [
+                    {
+                        "name": "world",
+                        "path": "/path/to/servers/MyServer42/worlds/world",
+                        "version": None,
+                        "type": None
+                    }
+                ],
+                "properties": {
+                    "allow-flight": False,
+                    "allow-nether": True,
+                    "difficulty": "easy"
+                }
+            }
+        }
 
 
 class ServerCommand(BaseModel):

@@ -13,11 +13,10 @@ from starlette.staticfiles import StaticFiles
 import mc_server_interaction.paths
 from fastapi import FastAPI, WebSocket, UploadFile, File, APIRouter
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
-from mc_server_interaction.exceptions import ServerRunningException, WorldExistsException
+from mc_server_interaction.exceptions import ServerRunningException
 from mc_server_interaction.server_manger import ServerManager
 from starlette.middleware.cors import CORSMiddleware
 
-from mc_server_manager_api import utils
 from mc_server_manager_api.models import *
 
 world_upload_path = mc_server_interaction.paths.cache_dir / "uploaded_worlds"
@@ -42,6 +41,7 @@ if os.path.isdir("./web/static"):
     app.mount("/static", StaticFiles(directory="web/static"), name="static")
     app.mount("/", StaticFiles(directory="web/"), name="")
 
+
 def _get_servers():
     servers = manager.get_servers()
     resp = {
@@ -52,6 +52,14 @@ def _get_servers():
         ]
     }
     return resp
+
+
+def _get_worlds(server):
+    worlds = server.worlds
+    ret = []
+    for world in worlds:
+        ret.append(world.to_dict())
+    return ret
 
 
 # do some load on startup
@@ -121,7 +129,7 @@ async def create_server(server: ServerCreationData):
     return ServerCreatedModel(message="Lol", sid=sid)
 
 
-@router.get("/servers/{sid}")
+@router.get("/servers/{sid}", response_model=MinecraftServerModel)
 async def get_server(sid: str):
     server = manager.get_server(sid)
     if not server:
@@ -131,6 +139,7 @@ async def get_server(sid: str):
         sid=sid,
         version=server.server_config.version,
         status=server.status.name,
+        worlds=[_get_worlds(server)],
         properties=server.properties.to_dict()
     )
 
