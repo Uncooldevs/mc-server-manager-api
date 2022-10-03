@@ -13,7 +13,7 @@ from starlette.staticfiles import StaticFiles
 import mc_server_interaction.paths
 from fastapi import FastAPI, WebSocket, UploadFile, File, APIRouter
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
-from mc_server_interaction.exceptions import ServerRunningException
+from mc_server_interaction.exceptions import ServerRunningException, WorldExistsException
 from mc_server_interaction.manager import ServerManager
 from starlette.middleware.cors import CORSMiddleware
 
@@ -91,7 +91,7 @@ async def get_servers():
     return JSONResponse(resp, 200)
 
 
-@router.websocket("/api/servers")
+@router.websocket("/servers")
 async def get_servers_websocket(websocket: WebSocket):
     await websocket.accept()
     old_resp = {}
@@ -127,6 +127,15 @@ async def create_server(server: ServerCreationData):
         }, 500)
     asyncio.create_task(manager.install_server(sid))
     return ServerCreatedModel(message="Lol", sid=sid)
+
+
+@router.get("/worlds", response_model=AllWorldsResponse)
+async def get_worlds():
+    worlds_dict = {}
+    for sid in manager.get_servers():
+        server = manager.get_server(sid)
+        worlds_dict[sid] = _get_worlds(server)
+    return JSONResponse({"worlds": worlds_dict}, 200)
 
 
 @router.get("/servers/{sid}", response_model=MinecraftServerModel)
@@ -210,6 +219,7 @@ async def get_worlds(sid: str):
         return JSONResponse({"error": "Server not found"}, 404)
     return JSONResponse({"worlds": _get_worlds(server)}, 200)
 
+
 @router.post("/servers/{sid}/copy_world")
 async def copy_world(sid: str, dest: str = None, world_name: str = None, override: bool = False):
     server = manager.get_server(sid)
@@ -230,6 +240,28 @@ async def copy_world(sid: str, dest: str = None, world_name: str = None, overrid
     except [IsADirectoryError, NotADirectoryError, OSError]:
         return JSONResponse({"message": "Failed to copy world, directory already exists"})
     return JSONResponse({"message": "Copied world to server"}, 200)
+
+
+@router.post("/servers/{sid}/create_world")
+async def create_world(sid: str, world_generation_settings: WorldGenerationData):
+    server = manager.get_server(sid)
+    if not server:
+        return JSONResponse({"error": "Server not found"}, 404)
+    try:
+        await server.create_new_world(world_generation_settings.name, world_generation_settings.data)
+    except WorldExistsException:
+        return JSONResponse({"error": "A world with this name does already exist"})
+    asyncio.create_task(server.set_active_world(world_generation_settings.name, new=True))
+    return JSONResponse({"message": "The new world will be created after restart"}, 202)
+
+
+@router.post("/servers/{sid}/change_world")
+async def change_world(sid: str, world_name: str):
+    server = manager.get_server(sid)
+    if not server:
+        return JSONResponse({"error": "Server not found"}, 404)
+    asyncio.create_task(server.set_active_world(world_name))
+    return JSONResponse({"message": f"Set active world to {world_name}"}, 202)
 
 
 @router.websocket("/servers/{sid}/websocket")

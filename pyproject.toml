@@ -8,8 +8,8 @@ authors = ["Dummerle <44114474+Dummerle@users.noreply.github.com>"]
 python = "^3.8"
 fastapi = "^0.81.0"
 uvicorn = {extras = ["standard"], version = "^0.18.3"}
-mc-server-interaction = {git = "https://github.com/Uncooldevs/mc-server-interaction", rev = "main"}
 python-multipart = "^0.0.5"
+mc-server-interaction = "^0.2.0"
 
 
 [tool.poetry.dev-dependencies]
