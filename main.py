@@ -13,7 +13,7 @@ from starlette.staticfiles import StaticFiles
 import mc_server_interaction.paths
 from fastapi import FastAPI, WebSocket, UploadFile, File, APIRouter
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
-from mc_server_interaction.exceptions import ServerRunningException
+from mc_server_interaction.exceptions import ServerRunningException, WorldExistsException
 from mc_server_interaction.manager import ServerManager
 from starlette.middleware.cors import CORSMiddleware
 
