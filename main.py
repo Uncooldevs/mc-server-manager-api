@@ -147,7 +147,7 @@ async def get_server(sid: str):
         sid=sid,
         version=server.server_config.version,
         status=server.status.name,
-        worlds=[_get_worlds(server)],
+        worlds=_get_worlds(server),
         properties=server.properties.to_dict(),
         backups=manager.backup_manager.get_backups_for_server(sid)
     )
