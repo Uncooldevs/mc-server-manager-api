@@ -92,7 +92,7 @@ class MinecraftServerModel(BaseModel):
     status: str = Field(..., title="Status of the server")
     worlds: list = Field(..., title="Worlds")
     properties: dict = Field(..., title="Properties of the Minecraft server")
-    backups: list = Field(..., title="List of backups")
+    backups: dict = Field(..., title="List of backups")
 
     class Config:
         schema_extra = {

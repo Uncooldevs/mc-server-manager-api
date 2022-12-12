@@ -110,16 +110,15 @@ async def get_servers_websocket(websocket: WebSocket):
 async def get_available_versions():
     return JSONResponse(
         {
-            "available_versions": list(manager.available_versions.available_versions.keys())
+            "available_versions": ["latest"] + list(manager.available_versions.available_versions.keys())
         }, 200)
 
 
 @router.post("/servers", response_model=ServerCreatedModel)
 async def create_server(server: ServerCreationData):
-    world_path = None
 
     try:
-        sid, server = await manager.create_new_server(name=server.name, version=server.version, world_path=world_path,
+        sid, server = await manager.create_new_server(name=server.name, version=server.version,
                                                       world_generation_settings=server.world_generation_settings)
     except Exception as e:
         return JSONResponse({
@@ -148,9 +147,9 @@ async def get_server(sid: str):
         sid=sid,
         version=server.server_config.version,
         status=server.status.name,
-        worlds=[_get_worlds(server)],
+        worlds=_get_worlds(server),
         properties=server.properties.to_dict(),
-        backups=manager.backup_manager.get_backup(sid)
+        backups=manager.backup_manager.get_backups_for_server(sid)
     )
 
 
@@ -361,6 +360,37 @@ async def create_backup(sid: str, body: CreateBackupModel):
         return 404
 
     asyncio.create_task(manager.backup_manager.create_backup(sid, body.world_name))
+
+    return 200
+
+
+@router.get("/servers/backups/{bid}")
+def download_backup(bid: str):
+    backup = manager.backup_manager.get_backup(bid)
+    if not backup:
+        return JSONResponse({"message": "Backup not found"}, 404)
+
+    return FileResponse(backup.path, 200)
+
+
+@router.post("/servers/backups/{bid}/restore")
+async def restore_backup(bid: str):
+    backup = manager.backup_manager.get_backup(bid)
+    if not backup:
+        return JSONResponse({"message": "Backup not found"}, 404)
+
+    asyncio.create_task(manager.backup_manager.restore_backup(bid))
+
+    return 202
+
+
+@router.post("/servers/backups/{bid}/delete")
+async def delete_backup(bid: str):
+    backup = manager.backup_manager.get_backup(bid)
+    if not backup:
+        return JSONResponse({"message": "Backup not found"}, 404)
+
+    manager.backup_manager.delete_backup(bid)
 
     return 200
 
