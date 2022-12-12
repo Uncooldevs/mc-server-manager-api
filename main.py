@@ -373,4 +373,26 @@ def download_backup(bid: str):
     return FileResponse(backup.path, 200)
 
 
+@router.post("/servers/backups/{bid}/restore")
+async def restore_backup(bid: str):
+    backup = manager.backup_manager.get_backup(bid)
+    if not backup:
+        return JSONResponse({"message": "Backup not found"}, 404)
+
+    asyncio.create_task(manager.backup_manager.restore_backup(bid))
+
+    return 202
+
+
+@router.post("/servers/backups/{bid}/delete")
+async def delete_backup(bid: str):
+    backup = manager.backup_manager.get_backup(bid)
+    if not backup:
+        return JSONResponse({"message": "Backup not found"}, 404)
+
+    manager.backup_manager.delete_backup(bid)
+
+    return 200
+
+
 app.include_router(router)
